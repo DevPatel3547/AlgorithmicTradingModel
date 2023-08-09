@@ -45,7 +45,7 @@ I am actively working on enhancements to make the Algorithmic Trader Model more 
 - **Live Trading**: Real-time trading execution.
 - **Paper Trading**: Risk-free paper trading support.
 
-Stay tuned for these exciting updates, and feel free to contribute or suggest new features!
+I'll be updating the code soon when the new features are available. Stay tuned for these exciting updates, and feel free to contribute or suggest new features!
 
 
 ## Table of Contents
