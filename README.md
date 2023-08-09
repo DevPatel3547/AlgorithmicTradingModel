@@ -76,16 +76,16 @@ A Jupyter Lab Notebook is included, showcasing thorough testing and documentatio
 ### Requirements
 
 Make sure you have the required libraries and packages installed. 
--python3
--pip
--`pip install pandas numpy yfinance scikit-learn matplotlib tensorflow keras`
--pandas
--numpy
--yfinance
--scikit-learn
--matplotlib
--tensorflow
--keras
+-**python3**
+-**pip**
+-**`pip install pandas numpy yfinance scikit-learn matplotlib tensorflow keras`**
+-**pandas**
+-**numpy**
+-**yfinance**
+-**scikit-learn**
+-**matplotlib**
+-**tensorflow**
+-**keras**
 
 
 ## Support
