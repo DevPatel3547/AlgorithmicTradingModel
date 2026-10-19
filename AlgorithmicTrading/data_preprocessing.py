@@ -1,4 +1,5 @@
 import yfinance as yf
+import pandas as pd
 import numpy as np
 from sklearn.preprocessing import MinMaxScaler
 
@@ -15,7 +16,10 @@ def get_user_stock():
 
 # Function to load stock data
 def load_data(stock, start_date, end_date):
-    return yf.download(stock, start=start_date, end=end_date)[['Open', 'High', 'Low', 'Close', 'Volume']]
+    data = yf.download(stock, start=start_date, end=end_date)
+    if isinstance(data.columns, pd.MultiIndex):  # newer yfinance returns (field, ticker) columns
+        data.columns = data.columns.get_level_values(0)
+    return data[['Open', 'High', 'Low', 'Close', 'Volume']]
 
 # Function to preprocess data for training
 def preprocess_data(data, seq_length):

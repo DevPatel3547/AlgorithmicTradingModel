@@ -5,9 +5,8 @@ from model_building import train_model
 from predictions import make_predictions, plot_prediction, future_price_predictions
 from technical_analysis import moving_averages, plot_volume, compute_technical_indicators, plot_technical_indicators
 import yfinance as yf # For the Volume data
-import matplotlib as plt
-from sklearn.metrics import mean_squared_error
-from sklearn.model_selection import KFold
+import matplotlib.pyplot as plt
+from backtest import walk_forward_backtest, lstm_model
 
 def main():
     stock = get_user_stock()
@@ -19,16 +18,17 @@ def main():
     data['Volume'] = yf.download(stock, start=start_date, end=end_date)['Volume']
     scaled_data, x_train, y_train, scaler = preprocess_data(data, seq_length)
 
-    # K-Fold Cross-Validation
-    kfold = KFold(n_splits=2, shuffle=True)
-    for train_index, test_index in kfold.split(x_train):
-        train_X, test_X = x_train[train_index], x_train[test_index]
-        train_y, test_y = y_train[train_index], y_train[test_index]
-        model = train_model(train_X, train_y)
-        prediction = make_predictions(model, test_X, scaler)
-        mse = mean_squared_error(test_y, prediction)
-        print(f"Mean Squared Error for fold: {mse}")
-        
+    # Walk-forward backtest on held-out history: each fold trains only on the days
+    # before it, then trades the LSTM forecast combined with a mean-reversion signal.
+    result = walk_forward_backtest(data, seq_length=seq_length, n_folds=4, model_factory=lstm_model)
+    print("Walk-forward backtest (no transaction costs):")
+    for key, value in result.summary().items():
+        print(f"  {key}: {value}")
+
+    # Final model for the forward-looking forecast below, trained on all history.
+    model = train_model(x_train, y_train)
+
+
     ma_data = moving_averages(data[['Close']])
     plt.figure(figsize=(15, 6))
     plt.plot(ma_data['Close'], label='Close Price')

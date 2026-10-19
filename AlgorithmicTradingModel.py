@@ -7,7 +7,12 @@ import matplotlib.pyplot as plt
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense, Dropout, Bidirectional, Conv1D
 from tensorflow.keras.optimizers import Adam
-from sklearn.model_selection import KFold
+import os
+import sys
+
+# The walk-forward backtest lives in AlgorithmicTrading/backtest.py; reuse it here.
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'AlgorithmicTrading'))
+from backtest import walk_forward_backtest, lstm_model  # noqa: E402
 
 # Function to get stock symbol from user
 def get_user_stock():
@@ -16,7 +21,10 @@ def get_user_stock():
 
 # Function to load stock data
 def load_data(stock, start_date, end_date):
-    return yf.download(stock, start=start_date, end=end_date)[['Open', 'High', 'Low', 'Close', 'Volume']]
+    data = yf.download(stock, start=start_date, end=end_date)
+    if isinstance(data.columns, pd.MultiIndex):  # newer yfinance returns (field, ticker) columns
+        data.columns = data.columns.get_level_values(0)
+    return data[['Open', 'High', 'Low', 'Close', 'Volume']]
 
 # Function to preprocess data for training
 def preprocess_data(data, seq_length):
@@ -196,61 +204,23 @@ def plot_technical_indicators(ti_data):
     
     
     
-def backtest_model(data, seq_length, window_size='1M'):
-    cumulative_profit = 0
-    profits = []
-    holding_stock = False
-    buy_price = 0
-    
-    # Resampling the data by the window size (e.g., monthly)
-    resampled_data = data.resample(window_size).agg({'Open': 'first', 
-                                                    'High': 'max', 
-                                                    'Low': 'min', 
-                                                    'Close': 'last',
-                                                    'Volume': 'sum'})
-    
-    for i in range(seq_length + 41, len(resampled_data) - 1):
-        # Training Data
+def backtest_model(data, seq_length, n_folds=4):
+    """Walk-forward backtest on held-out history (see AlgorithmicTrading/backtest.py).
 
-        scaled_data, x_train, y_train, scaler = preprocess_data(data, seq_length)
-        model = train_model(x_train, y_train)
-        ti_data = compute_technical_indicators(data)  # Assuming you have a function for this
+    Each fold fits the scaler and the LSTM only on the days before it, then trades the
+    LSTM forecast combined with a mean-reversion signal. No transaction costs.
+    """
+    result = walk_forward_backtest(data, seq_length=seq_length, n_folds=n_folds, model_factory=lstm_model)
+    curve = (1 + result.daily['strategy_return']).cumprod()
+    plt.plot(curve, label='LSTM + mean reversion')
+    plt.plot((1 + result.daily['market_return']).cumprod(), label='Buy and hold')
+    plt.title('Walk-forward backtest (held-out history)')
+    plt.xlabel('Date')
+    plt.ylabel('Growth of $1')
+    plt.legend()
+    plt.show()
+    return result.summary()
 
-        # Testing Data (One window forward)
-        test_data = resampled_data.iloc[i:i+1]
-        actual_price = test_data['Close'].iloc[0]
-        rsi_value = ti_data['RSI'].iloc[i - (seq_length + 42)] # Getting the corresponding RSI value
-
-        # Apply Buy/Sell strategy
-        stop_loss_threshold = 0.05 # 5% loss
-        take_profit_threshold = 0.05 # 5% profit
-
-        # Buy condition: RSI below 30 and not holding stock
-        if rsi_value < 30 and not holding_stock:
-            buy_price = actual_price
-            holding_stock = True
-
-        # Sell condition: RSI above 70 and holding stock
-        elif holding_stock and rsi_value > 70:
-            profit = actual_price - buy_price
-            cumulative_profit += profit
-            profits.append(cumulative_profit)
-            holding_stock = False
-            
-    # Reporting
-    if profits and profits[-1] > 0: # Making sure there's profit to report
-        plt.plot(profits)
-        plt.title('Backtesting Cumulative Profits')
-        plt.xlabel('Window')
-        plt.ylabel('Profit')
-        plt.show()
-
-    return profits
-
-
-
-
-   
 
 def main():
     stock = get_user_stock()
@@ -262,16 +232,10 @@ def main():
     data['Volume'] = yf.download(stock, start=start_date, end=end_date)['Volume']
     scaled_data, x_train, y_train, scaler = preprocess_data(data, seq_length)
 
-    # K-Fold Cross-Validation
-    kfold = KFold(n_splits=2, shuffle=True)
-    for train_index, test_index in kfold.split(x_train):
-        train_X, test_X = x_train[train_index], x_train[test_index]
-        train_y, test_y = y_train[train_index], y_train[test_index]
-        model = train_model(train_X, train_y)
-        prediction = make_predictions(model, test_X, scaler)
-        mse = mean_squared_error(test_y, prediction)
-        print(f"Mean Squared Error for fold: {mse}")
-        
+    # Walk-forward evaluation on held-out history (see backtest_model below), then a
+    # final model trained on all history for the forward-looking forecast.
+    model = train_model(x_train, y_train)
+
     ma_data = moving_averages(data[['Close']])
     plt.figure(figsize=(15, 6))
     plt.plot(ma_data['Close'], label='Close Price')
@@ -295,8 +259,8 @@ def main():
     print("Future Price Predictions and Buy/Sell Recommendations:")
     print(recommendations)
     
-    profits = backtest_model(data, seq_length)
-    print("Backtesting Completed. Cumulative Profits:", profits)
+    summary = backtest_model(data, seq_length)
+    print("Walk-forward backtest (no transaction costs):", summary)
     
 
 if __name__ == "__main__":

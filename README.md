@@ -21,7 +21,8 @@ The Algorithmic Trader Model is packed with powerful functionalities, ensuring a
 - **Ensemble Learning**: Combines predictions for better accuracy.
 
 ### Backtesting and Simulation
-- **Historical Backtesting**: Tests strategies on historical data.
+- **Walk-Forward Backtesting** (`AlgorithmicTrading/backtest.py`): the history is cut into consecutive folds; for each fold the scaler and the LSTM are fitted only on the days before it, and the fold is then traded day by day. A position decided at the close of day t earns the return from t to t+1, so no decision sees the future. Transaction costs and slippage are not modelled.
+- **Two Signals Combined**: the LSTM's next-day forecast (up or down) and a mean-reversion signal (z-score of the close against its 20-day mean). The strategy is long only when the forecast predicts a rise and the price is not stretched above its mean; otherwise it is flat. A linear-regression model can stand in for the LSTM (`regression_model`) as a fast baseline.
 - **Simulation**: Simulated live trading support.
 
 ### Visualization and Analysis Tools
@@ -65,20 +66,24 @@ In case the separate files implementation does not work on your system, a combin
 
 ### Jupyter Lab Notebook
 
-A Jupyter Lab Notebook is included, showcasing thorough testing and documentation of the code. It provides insights into the development process and the testing performed on the algorithms. [Click here to view the notebook](./your_notebook_name.ipynb).
+A Jupyter Lab Notebook is included, showcasing thorough testing and documentation of the code. It provides insights into the development process and the testing performed on the algorithms. [Click here to view the notebook](./AlgorithmicTraderModel.ipynb).
 
 ### How to Use
 
 1. **For Combined Code**:Simply run the `AlgorithmicTradingModel.py` file in a Python environment that meets the requirements. 
 2. **For Separate Files Implementation**: If facing any issues with the combine file AlgorithmicTradingModel.py Simply run the main.py file from the AlgorithmicTrader folder
-3. **For Notebook Exploration**: Open the provided  to see detailed testing and evaluation.
+3. **For Notebook Exploration**: Open the provided notebook to see detailed testing and evaluation.
+
+### Tests
+
+`pip install numpy pandas scikit-learn pytest && pytest tests` checks the mean-reversion signal, the signal combination, that every fold trains only on earlier data, and that rewriting future prices does not change earlier decisions. GitHub Actions runs them on every push.
 
 ### Requirements
 
 Make sure you have the required libraries and packages installed. 
 - **python3**
 - **pip**
-- **`pip install pandas numpy yfinance scikit-learn matplotlib tensorflow keras`**
+- **`pip install -r requirements.txt`**
 - **pandas**
 - **numpy**
 - **yfinance**
